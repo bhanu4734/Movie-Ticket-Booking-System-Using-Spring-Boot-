@@ -96,7 +96,7 @@ http://localhost:8080/index.html
 ## ✨ Author
 **Bhanu Prasad**  
 💼 Passionate Java & Spring Boot Developer  
-🔗 [LinkedIn](https://linkedin.com/in/yourprofile) | [GitHub](https://github.com/yourusername)
+🔗 [LinkedIn](https://www.linkedin.com/in/bhanu-prasad-ulichi-421318349/) | [GitHub](https://github.com/bhanu4734)
 
 ---
 
