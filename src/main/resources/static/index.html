@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Movie Ticket Booking</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Optional: Google Fonts for a more modern style -->
+    <link href="https://fonts.googleapis.com/css?family=Montserrat:600,700&display=swap" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(120deg,#ecf4fa 0,#ebffe5 100%); font-family:'Montserrat',Arial,sans-serif; }
+        .container { max-width: 1200px; margin: 34px auto; }
+        .movie-header { color:#164e29; font-weight:900; font-size:2.4rem; text-shadow:0 2px 10px #b5ffe1; letter-spacing:1px;}
+        .movie-card {
+            cursor:pointer;
+            border:none;
+            border-radius:13px;
+            background: linear-gradient(135deg,#eafff4 70%,#fff7fa 100%);
+            box-shadow: 0 8px 28px #21a17118,0 2px 12px #e8e8f9;
+            transition: box-shadow .22s, transform .16s;
+        }
+        .movie-card:hover {
+            box-shadow: 0 16px 32px #21a17133,0 2px 12px #88f9ff56;
+            transform: scale(1.02);
+            background:#f8fffc;
+        }
+        .movie-card .card-title { font-weight:700; letter-spacing:0.5px;}
+        .movie-card .btn { border-radius:7px;}
+        .card-body { padding:32px 18px 18px 18px; }
+        .seat {
+            display:inline-block;
+            width:44px; height:44px; margin:8px 5px; border-radius:11px;
+            background:#f2fcf7; color:#15834e; box-shadow: 0 3px 11px #7afdce24;
+            border:2.7px solid #40be81; text-align:center; font-size:16px;
+            font-weight:600; user-select:none; vertical-align:middle;
+            position:relative; line-height:44px; transition:.17s all; letter-spacing:1px;
+        }
+        .seat.selected { background:#40be81; color:#fff; border-color:#196d4c; box-shadow:0 3px 24px #40be8166; }
+        .seat.booked { background:#e5ead9; color:#b1b1b1; border-color:#b1b1b1; cursor:not-allowed; }
+        .seat-row { margin-bottom:12px; }
+        .movie-details {
+            background: linear-gradient(132deg, #eafff6 80%,#ecf8ff 100%);
+            border-radius: 14px; padding:28px 30px 19px 27px; margin-bottom:26px;
+            box-shadow:0 3px 24px #7afdce1c;
+        }
+        .show-times .btn { margin-right: 11px; margin-bottom:6px;font-weight:600;}
+        .show-times .btn.active { background:#1b7b5b; color:#fff; }
+        .btn-book { background: linear-gradient(90deg,#269169 0,#13b872 100%); color:#fff; border-radius:7px; font-weight:700; }
+        .btn-book:hover { background: linear-gradient(90deg,#13694d 0,#16b481 100%);}
+        .btn-back { background:#e5f5ed; color:#1a7460; font-weight:600; border-radius:6px;}
+        #movieList { margin-bottom:35px; }
+        /* Responsive tweaks */
+        @media (max-width: 768px){
+            .seat{width:32px;height:32px;font-size:12px;line-height:32px;}
+            .movie-details{padding:16px 10px;}
+            .container{padding:10px;}
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="text-center movie-header mb-3">Movie Ticket Booking</div>
+    <div id="movieList"></div>
+    <div id="movieDetail" style="display:none;">
+        <button class="btn btn-back mb-3" id="backToList">&larr; Back</button>
+        <div id="movieInfo"></div>
+        <div class="show-times mb-3" id="showTimes"></div>
+        <hr>
+        <h5 class="mb-3" style="color:#227756;font-weight:700;">Select Your Seats <span class="badge bg-secondary ms-2">Live</span></h5>
+        <div id="seatMap"></div>
+        <div class="mb-3 mt-3 fs-5 text-center">
+            <span id="seatCount">0</span> seat(s) selected, <strong id="totalAmount">₹0</strong>
+        </div>
+        <form id="bookingForm" class="mb-2">
+            <div class="mb-2">
+                <label class="form-label" for="customerName">Your Name</label>
+                <input type="text" class="form-control" id="customerName" required>
+            </div>
+            <button type="submit" class="btn btn-book">Book Ticket</button>
+        </form>
+        <div id="bookingMsg"></div>
+    </div>
+</div>
+<script>
+    const MOVIE_API = '/movies';
+    const BOOKING_API = '/bookings';
+    let movies = [];
+    let bookings = [];
+    let currentMovie = null;
+    let selectedSeats = [];
+    let currentShow = null;
+    const showTimesArr = ["10:00 AM", "1:00 PM", "4:00 PM", "7:00 PM"];
+    function loadMovies() {
+        fetch(MOVIE_API).then(res=>res.json()).then(data=>{
+            movies = data;
+            renderMovieCards();
+        });
+    }
+    function loadBookings(callback) {
+        fetch(BOOKING_API).then(res=>res.json()).then(data=>{
+            bookings = data;
+            if(callback) callback();
+        });
+    }
+    function renderMovieCards() {
+        const panel = document.getElementById('movieList');
+        panel.innerHTML = `
+            <div class="mb-2"><h2 class="mb-4" style="color:#269169;">Now Showing</h2>
+            <div class="row" id="cardRow"></div></div>
+        `;
+        const cardRow = document.getElementById('cardRow');
+        movies.forEach(m=>{
+            cardRow.innerHTML += `
+            <div class="col-lg-4 col-md-6 mb-5">
+                <div class="card movie-card h-100 pointer" onclick="showMovieDetail('${m.id}')">
+                    <div class="card-body">
+                        <h5 class="card-title mb-3">${m.title}</h5>
+                        <h6 class="card-subtitle mb-2 text-muted">${m.genre}</h6>
+                        <div class="mb-2">Duration: <span class="badge bg-success text-light">${m.duration} min</span></div>
+                        <div class="mt-4"><span class="btn btn-outline-success btn-sm" style="font-weight:700;">Book Now</span></div>
+                    </div>
+                </div>
+            </div>
+            `;
+        });
+    }
+    window.showMovieDetail = function(id) {
+        currentMovie = movies.find(m=>m.id==id);
+        document.getElementById('movieList').style.display='none';
+        document.getElementById('movieDetail').style.display='';
+        currentShow = showTimesArr[0];
+        renderMovieDetail();
+    };
+    function renderMovieDetail() {
+        document.getElementById('movieInfo').innerHTML = `
+            <div class="movie-details">
+                <h3 style="font-weight:800;font-size:1.35em;margin-bottom:18px;">${currentMovie.title}</h3>
+                <div><strong>Genre:</strong> ${currentMovie.genre}</div>
+                <div><strong>Duration:</strong> ${currentMovie.duration} min</div>
+                <div><strong>ID:</strong> ${currentMovie.id}</div>
+            </div>
+        `;
+        renderShowTimes();
+        loadBookings(()=>renderSeatMap());
+        selectedSeats = [];
+        updateSeatInfo();
+        document.getElementById('bookingMsg').textContent="";
+    }
+    function renderShowTimes() {
+        const div = document.getElementById('showTimes');
+        div.innerHTML = '';
+        showTimesArr.forEach(time=>{
+            div.innerHTML += `<button class="btn ${currentShow===time?"btn-success active":"btn-outline-success"}" onclick="selectShowTime('${time}')">${time}</button>`;
+        });
+    }
+    window.selectShowTime = function(time) {
+        currentShow = time;
+        renderShowTimes();
+        loadBookings(()=>renderSeatMap());
+        selectedSeats = [];
+        updateSeatInfo();
+    };
+    function renderSeatMap() {
+        let bookedSeats = [];
+        bookings.forEach(b=>{
+            if(
+                b.movie && b.movie.id == currentMovie.id &&
+                b.showTime && b.showTime == currentShow &&
+                b.seatNumbers
+            ) {
+                bookedSeats = bookedSeats.concat(b.seatNumbers);
+            }
+        });
+        let rows = [];
+        for(let r=0;r<14;r++) {
+            let rowLabel = String.fromCharCode(65+r);
+            let seats = [];
+            for(let s=1;s<=26;s++) {
+                let label = rowLabel+s;
+                let isBooked = bookedSeats.includes(label);
+                seats.push(`<span class="seat${isBooked?' booked':''}" data-label="${label}" data-price="${seatPrice(rowLabel)}">${label}</span>`);
+            }
+            rows.push(`<div class="seat-row mb-1">${seats.join('')}</div>`);
+        }
+        document.getElementById('seatMap').innerHTML = rows.join('');
+        Array.from(document.querySelectorAll('.seat')).forEach(seat=>{
+            if(!seat.classList.contains('booked')) {
+                seat.onclick = function() {
+                    if(this.classList.contains('selected')) {
+                        this.classList.remove('selected');
+                        selectedSeats = selectedSeats.filter(s=>s!==seat.dataset.label);
+                    } else {
+                        this.classList.add('selected');
+                        selectedSeats.push(seat.dataset.label);
+                    }
+                    updateSeatInfo();
+                };
+            }
+        });
+    }
+    function seatPrice(rowLabel) {
+        if("ABCD".includes(rowLabel)) return 250;
+        if("EFGH".includes(rowLabel)) return 150;
+        return 100;
+    }
+    function updateSeatInfo() {
+        let amount = 0;
+        document.querySelectorAll('.seat.selected').forEach(seat=>{
+            amount += parseInt(seat.dataset.price);
+        });
+        document.getElementById('seatCount').textContent = selectedSeats.length;
+        document.getElementById('totalAmount').textContent = "₹"+amount;
+    }
+    document.getElementById('bookingForm').onsubmit=function(e){
+        e.preventDefault();
+        const customerName = document.getElementById('customerName').value;
+        if(selectedSeats.length===0){
+            document.getElementById('bookingMsg').textContent = "No seats selected.";
+            document.getElementById('bookingMsg').className = "text-danger";
+            return;
+        }
+        const booking = {
+            customerName: customerName,
+            seats: selectedSeats.length,
+            seatNumbers: selectedSeats,
+            movie: { id: currentMovie.id },
+            showTime: currentShow
+        };
+        fetch(BOOKING_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(booking)
+        })
+        .then(res=>res.json())
+        .then(data=>{
+            document.getElementById('bookingMsg').textContent = "Booking Successful!";
+            document.getElementById('bookingMsg').className = "text-success";
+            selectedSeats=[];
+            loadBookings(()=>renderSeatMap());
+            updateSeatInfo();
+        })
+        .catch(err=>{
+            document.getElementById('bookingMsg').textContent = "Booking Failed";
+            document.getElementById('bookingMsg').className = "text-danger";
+        });
+    };
+    document.getElementById('backToList').onclick=function(){
+        document.getElementById('movieDetail').style.display='none';
+        document.getElementById('movieList').style.display='';
+    };
+    window.onload=function() { loadMovies(); }
+</script>
+</body>
+</html>
